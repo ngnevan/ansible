@@ -19,11 +19,16 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
+import json
 import logging
+
+from xml.etree.ElementTree import tostring, fromstring
 
 from ansible import constants as C
 from ansible.errors import AnsibleConnectionFailure, AnsibleError
+from ansible.plugins import PluginLoader
 from ansible.plugins.connection import ConnectionBase, ensure_connect
+from ansible.plugins.connection.rpc import Rpc
 
 try:
     from ncclient import manager
@@ -41,8 +46,14 @@ except ImportError:
 
 logging.getLogger('ncclient').setLevel(logging.INFO)
 
+netconf_loader = PluginLoader(
+    'Netconf',
+    'ansible.plugins.netconf',
+    'netconf_plugins',
+    'netconf_plugins'
+)
 
-class Connection(ConnectionBase):
+class Connection(Rpc, ConnectionBase):
     ''' NetConf connections '''
 
     transport = 'netconf'
@@ -55,6 +66,7 @@ class Connection(ConnectionBase):
         display.display('network_os is set to %s' % self._network_os, log_only=True)
 
         self._manager = None
+        self._netconf = None
         self._connected = False
 
     def _connect(self):
@@ -94,6 +106,8 @@ class Connection(ConnectionBase):
 
         display.display('ncclient manager object created successfully', log_only=True)
 
+        self._netconf = netconf_loader.get(self._network_os, self)
+
         self._connected = True
         return (0, self._manager.session_id, '')
 
@@ -103,23 +117,28 @@ class Connection(ConnectionBase):
             self._connected = False
         super(Connection, self).close()
 
+    def send(self, request):
+        try:
+            request = to_ele(tostring(request))
+            reply = self._manager.rpc(request)
+            return fromstring(reply.data_xml)
+        except RPCError as exc:
+            raise AnsibleError(str(exc))
+
     @ensure_connect
     def exec_command(self, request):
         """Sends the request to the node and returns the reply
         """
-        if request == 'open_session()':
-            return (0, 'ok', '')
+        obj = json.loads(request)
 
-        req = to_ele(request)
-        if req is None:
-            return (1, '', 'unable to parse request')
+        self._rpc_objects.append(self._netconf)
 
         try:
-            reply = self._manager.rpc(req)
-        except RPCError as exc:
-            return (1, '', to_xml(exc.xml))
+            response = self._exec_rpc(obj)
+            return (0, response, '')
 
-        return (0, reply.data_xml, '')
+        except (AnsibleConnectionFailure, ValueError) as exc:
+            return (1, '', str(exc))
 
     def put_file(self, in_path, out_path):
         """Transfer a file from local to remote"""
@@ -128,3 +147,5 @@ class Connection(ConnectionBase):
     def fetch_file(self, in_path, out_path):
         """Fetch a file from remote to local"""
         pass
+
+

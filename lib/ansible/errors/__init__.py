@@ -208,6 +208,15 @@ class AnsibleFileNotFound(AnsibleRuntimeError):
 class AnsibleActionSkip(AnsibleRuntimeError):
     ''' an action runtime skip'''
     pass
+
 class AnsibleActionFail(AnsibleRuntimeError):
     ''' an action runtime failure'''
+    pass
+
+class AnsibleRpcError(AnsibleConnectionFailure):
+    ''' a rpc failure '''
+    pass
+
+class AnsibleCliError(AnsibleRpcError):
+    ''' a cliconf error '''
     pass

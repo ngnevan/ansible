@@ -32,7 +32,8 @@ import collections
 
 from ansible.module_utils.basic import env_fallback, return_values
 from ansible.module_utils.network_common import to_list, ComplexList
-from ansible.module_utils.connection import exec_command
+#from ansible.module_utils.connection import exec_command
+from ansible.module_utils.connection import Connection
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.urls import fetch_url
 
@@ -101,11 +102,15 @@ class Cli:
     def __init__(self, module):
         self._module = module
         self._device_configs = {}
+        self._connection = Connection(module)
 
     def exec_command(self, command):
-        if isinstance(command, dict):
-            command = self._module.jsonify(command)
-        return exec_command(self._module, command)
+        return self._connection.send_command(command)
+        #if isinstance(command, dict):
+        #    command = self._module.jsonify(command)
+        #rc, out, err = exec_command(self._module, command)
+        #out = self._module.from_json(out)
+        #return rc, out['result'], err
 
     def get_config(self, flags=[]):
         """Retrieves the current config from the device or cache

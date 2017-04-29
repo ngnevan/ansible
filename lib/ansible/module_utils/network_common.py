@@ -27,6 +27,7 @@
 #
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.basic import AnsibleFallbackNotFound
+from ansible.module_utils.connection import Connection
 
 def to_list(val):
     if isinstance(val, (list, tuple, set)):
@@ -148,4 +149,16 @@ class ComplexList(ComplexDict):
         if not isinstance(values, (list, tuple)):
             raise TypeError('value must be an ordered iterable')
         return [(super(ComplexList, self).__call__(v)) for v in values]
+
+
+def execute_module(module, params):
+    connection = Connection(module)
+    reply = connection.execute_module(module._name, params)
+
+    if 'error' in reply:
+        err = reply['error']
+        msg = err.get('data') or err['message']
+        module.fail_json(msg=msg)
+
+    return reply.get('result')
 

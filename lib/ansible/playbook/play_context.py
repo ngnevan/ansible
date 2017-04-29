@@ -64,6 +64,7 @@ MAGIC_VARIABLE_MAPPING = dict(
     pipelining       = ('ansible_ssh_pipelining', 'ansible_pipelining'),
     shell            = ('ansible_shell_type',),
     network_os       = ('ansible_network_os',),
+    network_api     =  ('ansible_network_api',),
     become           = ('ansible_become',),
     become_method    = ('ansible_become_method',),
     become_user      = ('ansible_become_user',),
@@ -170,6 +171,7 @@ class PlayContext(Base):
     _timeout          = FieldAttribute(isa='int', default=C.DEFAULT_TIMEOUT)
     _shell            = FieldAttribute(isa='string')
     _network_os       = FieldAttribute(isa='string')
+    _network_api      = FieldAttribute(isa='string')
     _connection_user  = FieldAttribute(isa='string')
     _ssh_args         = FieldAttribute(isa='string', default=C.ANSIBLE_SSH_ARGS)
     _ssh_common_args  = FieldAttribute(isa='string')

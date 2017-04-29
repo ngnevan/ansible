@@ -41,7 +41,6 @@ class Connection(ConnectionBase):
     has_pipelining = False
 
     def _connect(self):
-
         self._connected = True
         return self
 
@@ -79,3 +78,8 @@ class Connection(ConnectionBase):
 
     def close(self):
         self._connected = False
+
+    def reset(self):
+        super(Connection, self).reset()
+        self._do_it('RESET:')
+

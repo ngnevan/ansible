@@ -547,4 +547,3 @@ terminal_loader = PluginLoader(
     'terminal_plugins',
     'terminal_plugins'
 )
-
