@@ -80,9 +80,6 @@ class Connection(Rpc, _Connection):
         self._shell = self.ssh.invoke_shell()
         self._shell.settimeout(self._play_context.timeout)
 
-        self.receive()
-        display.display('cli session completed successfully', log_only=True)
-
         network_os = self._play_context.network_os
         if not network_os:
             raise AnsibleConnectionFailure('network_os value must be configured')
@@ -93,6 +90,8 @@ class Connection(Rpc, _Connection):
 
         self._rpc_objects.append(self._cliconf)
         display.display('loaded cliconf plugin for network_os %s' % network_os, log_only=True)
+
+        self.receive()
 
         display.display('firing event: on_open_session()', log_only=True)
         self._cliconf._on_open_session()
