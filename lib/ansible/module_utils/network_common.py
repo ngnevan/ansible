@@ -27,7 +27,9 @@
 #
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.basic import AnsibleFallbackNotFound
-from ansible.module_utils.connection import Connection
+from ansible.module_utils.connection import Provider
+from ansible.plugins import PluginLoader
+
 
 def to_list(val):
     if isinstance(val, (list, tuple, set)):
@@ -152,8 +154,8 @@ class ComplexList(ComplexDict):
 
 
 def execute_module(module, params):
-    connection = Connection(module)
-    reply = connection.execute_module(module._name, params)
+    provider = Provider(module)
+    reply = provider.exec_module(module._name, params)
 
     if 'error' in reply:
         err = reply['error']

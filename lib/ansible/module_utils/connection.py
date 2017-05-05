@@ -78,7 +78,7 @@ def exec_command(module, command):
 
     return (rc, to_native(stdout), to_native(stderr))
 
-class Connection:
+class Provider:
 
     def __init__(self, module):
         self._module = module
@@ -99,18 +99,34 @@ class Connection:
         if params:
             req['params'] = params
 
-        rc, out, err = exec_command(self._module, self._module.jsonify(req))
+        try:
+            sf = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sf.connect(self._module._socket_path)
 
-        if rc != 0:
-            self._module.fail_json(msg=str(err), rc=rc)
+            data = self._module.jsonify(req)
+            send_data(sf, to_bytes(data))
+
+            resp = recv_data(sf)
+
+        except socket.error:
+            exc = get_exception()
+            sf.close()
+            self._module.fail_json(msg='unable to connect to socket', err=str(exc))
+
+        sf.close()
 
         try:
-            reply = self._module.from_json(out)
+            response = self._module.from_json(resp)
         except ValueError as exc:
-            self._module.fail_json(msg=str(err))
+            self._module.fail_json(msg=str(exc))
 
-        if reply['id'] != reqid:
+        if 'error' in response:
+            err = response['error']
+            msg = err.get('data') or err['message']
+            self._module.fail_json(msg=msg, code=err['code'])
+
+        if response['id'] != reqid:
             self._module.fail_json(msg='invalid id received')
 
-        return reply
+        return response
 
