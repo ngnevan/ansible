@@ -40,7 +40,7 @@ from ansible.playbook.helpers import load_list_of_blocks
 from ansible.playbook.included_file import IncludedFile
 from ansible.playbook.task_include import TaskInclude
 from ansible.playbook.role_include import IncludeRole
-from ansible.plugins import action_loader, connection_loader, filter_loader, lookup_loader, module_loader, test_loader
+from ansible.plugins import action_loader, connection_loader, filter_loader, lookup_loader, module_loader, test_loader, provider_loader
 from ansible.template import Templar
 from ansible.vars import combine_vars, strip_internal_keys
 
@@ -71,6 +71,7 @@ class SharedPluginLoaderObj:
         self.test_loader   = test_loader
         self.lookup_loader = lookup_loader
         self.module_loader = module_loader
+        self.provider_loader = provider_loader
 
 
 _sentinel = StrategySentinel()

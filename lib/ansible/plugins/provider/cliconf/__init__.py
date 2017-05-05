@@ -21,10 +21,12 @@ __metaclass__ = type
 
 import re
 import copy
-import functools
 
-from ansible.plugins.network import NetworkBase
-from ansible.module_utils.six import iteritems
+from functools import wraps
+from abc import ABCMeta, abstractmethod
+
+from ansible.module_utils.six import with_metaclass, iteritems
+from ansible.utils.display import Display
 
 try:
     from __main__ import display
@@ -32,8 +34,41 @@ except ImportError:
     from ansible.utils.display import Display
     display = Display()
 
+def enable_mode(func):
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+        prompt = self.get_prompt()
+        if not str(prompt).strip().endswith('#'):
+            raise AnsibleError('operation requires privilege escalation')
+        return func(self, *args, **kwargs)
+    return wrapped
 
-class NetworkModule(NetworkBase):
+
+class CliconfBase(with_metaclass(ABCMeta, object)):
+
+    def send_command(self, command, prompts=None, answer=None, send_only=False):
+        """Send the command to the device and return the output
+
+        This method will send the command to the remote device and return
+        the output from the command.
+        """
+        return self._connection.send(command, prompts, answer, send_only)
+
+    def get_prompt(self):
+        """Returns the last matched prompt
+
+        This method will return the last prompt that was matched by the set
+        of compiled regular expressions
+        """
+        return str(self._connection._matched_prompt).strip()
+
+    @abstractmethod
+    def edit_config(self, commands):
+        pass
+
+    @abstractmethod
+    def get_config(self, source='running'):
+        pass
 
     def _match_instances(self, items, instances, key=None):
         matches = set()

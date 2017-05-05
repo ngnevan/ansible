@@ -22,7 +22,7 @@ __metaclass__ = type
 from xml.etree.ElementTree import Element, SubElement
 from xml.etree.ElementTree import tostring
 
-from ansible.plugins.network.netconf.junos import NetworkModule as _NetworkModule
+from ansible.plugins.provider.netconf.junos import NetworkModule as _NetworkModule
 from ansible.module_utils.six import iteritems
 
 try:

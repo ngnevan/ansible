@@ -19,14 +19,12 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import sys
-import copy
-import functools
+import re
 
-from abc import ABCMeta, abstractmethod
+from itertools import chain
 
-from ansible.module_utils.six import with_metaclass, iteritems
-from ansible import constants as C
+from ansible.plugins.provider.cliconf import CliconfBase
+from ansible.plugins.provider.cliconf import enable_mode
 
 try:
     from __main__ import display
@@ -35,30 +33,27 @@ except ImportError:
     display = Display()
 
 
-def memoize(obj):
-    cache = obj.cache = {}
+class Cliconf(CliconfBase):
 
-    @functools.wraps(obj)
-    def memoizer(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = obj(*args, **kwargs)
-        return cache[key]
-    return memoizer
+    @enable_mode
+    def edit_config(self, commands):
+        diff = {}
 
+        if self.diff:
+            diff['before'] = self.get_config(source='running')
 
-class NetworkBase(with_metaclass(ABCMeta, object)):
+        if not self.check_mode:
+            for command in chain(['configure'], to_list(commands), ['end']):
+                self.send_command(command)
 
-    def __init__(self, connection, check_mode=False, diff=False):
-        self._connection = connection
-        self._check_mode = check_mode
-        self._diff = diff
+        if diff:
+            diff['after'] = self.get_config(source='running')
 
-    @abstractmethod
-    def run(self, module_params):
-        pass
+        return diff
 
-    def invoke(self, name, *args, **kwargs):
-        meth = getattr(self, name, None)
-        if meth:
-            return meth(*args, **kwargs)
+    @enable_mode
+    def get_config(self, source='running'):
+        lookup = {'running': 'running-config', 'startup': 'startup-config'}
+        output = self.send_command('show %s' % lookup[source])
+        return str(output).strip()
+

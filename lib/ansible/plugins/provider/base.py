@@ -15,13 +15,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
-#
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import re
+from abc import ABCMeta, abstractmethod
 
-from ansible.plugins.network.cliconf import NetworkModule as _NetworkModule
+from ansible.module_utils.six import with_metaclass, iteritems
+from ansible.utils.display import Display
 
 try:
     from __main__ import display
@@ -30,18 +31,25 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(_NetworkModule):
+class ProviderModuleBase(with_metaclass(ABCMeta, object)):
 
-    def load_config(self, commands):
-        diff = {}
+    def __init__(self, connection, check_mode, diff):
+        self._connection = connection
+        self.check_mode = check_mode
+        self.diff = diff
+        self.warnings = []
 
-        if self._diff:
-            diff['before'] = self._connection.get_config(source='running')
+    @abstractmethod
+    def run(self, module_params):
+        pass
 
-        self._connection.edit_config(commands)
+    def inovke(self, name, *args, **kwargs):
+        method = getattr(self, name, None)
+        if method:
+            return method(*args, **kwargs)
 
-        if self._diff:
-            diff['after'] = self._connection.get_config(source='running')
+    def warn(self, warning):
+        self.warnings.append(warning)
 
-        return diff
+
 

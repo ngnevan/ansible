@@ -15,13 +15,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
-#
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import re
+import copy
 
-from ansible.plugins.network.cliconf import NetworkModule as _NetworkModule
+from ansible.plugins import PluginLoader
+from ansible.plugins.provider import ProviderBase
 
 try:
     from __main__ import display
@@ -30,18 +31,18 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(_NetworkModule):
+package = lambda name: 'ansible.plugins.provider.cliconf.%s' % name
 
-    def load_config(self, commands):
-        diff = {}
+class Provider(ProviderBase):
 
-        if self._diff:
-            diff['before'] = self._connection.get_config(source='running')
+    provider = 'cliconf'
+    package = property(lambda self: package(self._play_context.network_os))
 
-        self._connection.edit_config(commands)
-
-        if self._diff:
-            diff['after'] = self._connection.get_config(source='running')
-
-        return {'diff': diff}
+    @staticmethod
+    def play_context_overrides(play_context):
+        context = copy.deepcopy(play_context)
+        context.connection = 'network_cli'
+        context.remote_user = play_context.connection_user
+        context.become = True
+        return context
 

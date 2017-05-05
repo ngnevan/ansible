@@ -547,3 +547,10 @@ terminal_loader = PluginLoader(
     'terminal_plugins',
     'terminal_plugins'
 )
+
+provider_loader = lambda x: PluginLoader(
+    'Provider',
+    'ansible.plugins.provider.%s' % x,
+    'provider_plugins',
+    'provider_plugins'
+)

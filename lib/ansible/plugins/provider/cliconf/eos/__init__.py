@@ -19,11 +19,9 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-from xml.etree.ElementTree import Element, SubElement
-from xml.etree.ElementTree import tostring, fromstring
+import re
 
-from ansible.plugins.network import NetworkBase
-from ansible.module_utils.six import iteritems
+from ansible.plugins.network.cliconf import NetworkBase
 
 try:
     from __main__ import display
@@ -34,28 +32,16 @@ except ImportError:
 
 class NetworkModule(NetworkBase):
 
-    def load_config(self, config):
-        """Load the config into the remote device
-        """
-        diff = None
-        try:
-            self._connection.lock_configuration()
+    def load_config(self, commands):
+        diff = {}
 
-            reply = self._connection.load_configuration(config)
+        if self._diff:
+            diff['before'] = self._connection.get_config(source='running')
 
-            self._connection.validate()
+        self._connection.edit_config(commands)
 
-            reply = self._connection.get_configuration(compare=True, config_format='text')
-            output = fromstring(reply).find('.//configuration-output')
-            diff = str(output.text).strip()
-
-            if not self._check_mode:
-                self._connection.commit_configuration()
-            else:
-                self._connection.discard_changes()
-
-        finally:
-            self._connection.unlock_configuration()
+        if self._diff:
+            diff['after'] = self._connection.get_config(source='running')
 
         return diff
 

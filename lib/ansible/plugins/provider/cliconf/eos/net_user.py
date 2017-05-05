@@ -19,7 +19,7 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-from ansible.plugins.cliconf.eos import Cliconf as _Cliconf
+from ansible.plugins.cliconf.eos import NetworkModule as _NetworkModule
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.network_common import to_list
 
@@ -30,7 +30,7 @@ except ImportError:
     display = Display()
 
 
-class Cliconf(_Cliconf):
+class NetworkModule(_NetworkModule):
 
     def run(self, module_params):
         """Implements module net_user
