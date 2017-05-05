@@ -22,17 +22,14 @@ import re
 import socket
 import json
 import signal
-import datetime
 import traceback
 import logging
 
 from ansible import constants as C
-from ansible.errors import AnsibleCliError, AnsibleConnectionFailure
-from ansible.module_utils.six.moves import StringIO
-from ansible.plugins import PluginLoader
-from ansible.plugins.connection import ensure_connect
+from ansible.plugins import terminal_loader
 from ansible.plugins.connection.paramiko_ssh import Connection as _Connection
-from ansible.plugins.connection.rpc import Rpc
+from ansible.module_utils.six.moves import StringIO
+from ansible.errors import AnsibleError, AnsibleConnectionFailure
 
 try:
     from __main__ import display
@@ -40,15 +37,8 @@ except ImportError:
     from ansible.utils.display import Display
     display = Display()
 
-cliconf_loader = PluginLoader(
-    'Cliconf',
-    'ansible.plugins.cliconf',
-    'cliconf_plugins',
-    'cliconf_plugins',
-)
 
-
-class Connection(Rpc, _Connection):
+class Connection(_Connection):
     ''' CLI (shell) SSH connections on Paramiko '''
 
     transport = 'network_cli'
@@ -57,8 +47,9 @@ class Connection(Rpc, _Connection):
     def __init__(self, play_context, new_stdin, *args, **kwargs):
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
 
-        self._cliconf = None
+        self._terminal = None
         self._shell = None
+        self._connected = False
         self._matched_prompt = None
         self._matched_pattern = None
         self._last_response = None
@@ -84,22 +75,21 @@ class Connection(Rpc, _Connection):
         if not network_os:
             raise AnsibleConnectionFailure('network_os value must be configured')
 
-        self._cliconf = cliconf_loader.get(network_os, self)
-        if not self._cliconf:
-            raise AnsibleConnectionFailure('unable to load cliconf')
+        self._terminal = terminal_loader.get(network_os, self)
+        if not self._terminal:
+            raise AnsibleConnectionFailure('unable to load terminal')
 
-        self._rpc_objects.append(self._cliconf)
-        display.display('loaded cliconf plugin for network_os %s' % network_os, log_only=True)
+        display.display('loaded terminal plugin for network_os %s' % network_os, log_only=True)
 
         self.receive()
 
-        display.display('firing event: on_open_session()', log_only=True)
-        self._cliconf._on_open_session()
+        display.display('firing event: on_open_shell()', log_only=True)
+        self._terminal.on_open_shell()
 
         if getattr(self._play_context, 'become', None):
             display.display('firing event: on_authorize', log_only=True)
             auth_pass = self._play_context.become_pass
-            self._cliconf._on_authorize(passwd=auth_pass)
+            self._terminal.on_authorize(passwd=auth_pass)
 
         self._connected = True
         display.display('ssh session negotiation has completed successfully', log_only=True)
@@ -109,8 +99,8 @@ class Connection(Rpc, _Connection):
         """
         display.display("closing ssh connection to device", log_only=True)
         if self._shell:
-            display.display("firing event: on_close_session()", log_only=True)
-            self._cliconf._on_close_session()
+            display.display("firing event: on_close_shell()", log_only=True)
+            self._terminal.on_close_shell()
 
         if self._shell:
             self._shell.close()
@@ -164,7 +154,7 @@ class Connection(Rpc, _Connection):
     def _strip(self, data):
         """Removes ANSI codes from device response
         """
-        for regex in self._cliconf.ansi_re:
+        for regex in self._terminal.ansi_re:
             data = regex.sub('', data)
         return data
 
@@ -193,12 +183,12 @@ class Connection(Rpc, _Connection):
     def _find_prompt(self, response):
         """Searches the buffered response for a matching command prompt"""
         errored_response = None
-        for regex in self._cliconf.terminal_stderr_re:
+        for regex in self._terminal.terminal_stderr_re:
             if regex.search(response):
                 errored_response = response
                 break
 
-        for regex in self._cliconf.terminal_stdout_re:
+        for regex in self._terminal.terminal_stdout_re:
             match = regex.search(response)
             if match:
                 self._matched_pattern = regex.pattern
@@ -207,44 +197,30 @@ class Connection(Rpc, _Connection):
                     return True
 
         if errored_response:
-            raise AnsibleCliError(errored_response)
+            raise AnsibleError(errored_response)
 
     def alarm_handler(self, signum, frame):
-        """Alarm handler raised in case of command timeout
-        """
-        display.display('closing ssh session due to sigalarm', log_only=True)
-        self.close()
+        """Alarm handler raised in case of command timeout """
+        display.display('closing shell due to sigalarm', log_only=True)
+        self.close_shell()
 
-    @ensure_connect
     def exec_command(self, cmd):
         """Executes the cmd on in the shell and returns the output
         """
         try:
             obj = json.loads(cmd)
-            if 'jsonrpc' not in obj:
-                obj = {'jsonrpc': '2.0', 'method': 'send_command', 'params': obj}
-
         except (ValueError, TypeError):
-            obj = {'jsonrpc': '2.0', 'method': 'send_command',
-                   'params': {'command': str(cmd).strip()}}
+            obj = str(cmd).strip()
 
-        # this is a null method that is used to start the connection
-        #process to the remote device
-        if obj['method'] == 'connect':
-            return (0, 'ok', '')
+        if not signal.getsignal(signal.SIGALRM):
+            signal.signal(signal.SIGALRM, self.alarm_handler)
+        signal.alarm(self._play_context.timeout)
 
         try:
-            if not signal.getsignal(signal.SIGALRM):
-                signal.signal(signal.SIGALRM, self.alarm_handler)
-
-            signal.alarm(self._play_context.timeout)
-            out = self._exec_rpc(obj)
-            signal.alarm(0)
-
-            return (0, out, '')
-
-        except Exception as exc:
-            display.display(traceback.format_exc(), log_only=True)
+            out = self.send(obj)
+        except (AnsibleConnectionFailure, ValueError) as exc:
             return (1, '', str(exc))
 
+        signal.alarm(0)
+        return (0, out, '')
 

@@ -25,10 +25,9 @@ import logging
 from xml.etree.ElementTree import tostring, fromstring
 
 from ansible import constants as C
-from ansible.errors import AnsibleConnectionFailure, AnsibleError
 from ansible.plugins import PluginLoader
-from ansible.plugins.connection import ConnectionBase, ensure_connect
-from ansible.plugins.connection.rpc import Rpc
+from ansible.plugins.connection import ConnectionBase
+from ansible.errors import AnsibleConnectionFailure, AnsibleError
 
 try:
     from ncclient import manager
@@ -46,14 +45,8 @@ except ImportError:
 
 logging.getLogger('ncclient').setLevel(logging.INFO)
 
-netconf_loader = PluginLoader(
-    'Netconf',
-    'ansible.plugins.netconf',
-    'netconf_plugins',
-    'netconf_plugins'
-)
 
-class Connection(Rpc, ConnectionBase):
+class Connection(ConnectionBase):
     ''' NetConf connections '''
 
     transport = 'netconf'
@@ -105,8 +98,6 @@ class Connection(Rpc, ConnectionBase):
             return (1, '', 'not connected')
 
         display.display('ncclient manager object created successfully', log_only=True)
-
-        self._netconf = netconf_loader.get(self._network_os, self)
 
         self._connected = True
         return (0, self._manager.session_id, '')

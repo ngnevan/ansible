@@ -78,8 +78,3 @@ class Connection(ConnectionBase):
 
     def close(self):
         self._connected = False
-
-    def reset(self):
-        super(Connection, self).reset()
-        self._do_it('RESET:')
-
