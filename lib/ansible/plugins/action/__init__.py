@@ -632,12 +632,8 @@ class ActionBase(with_metaclass(ABCMeta, object)):
 
         # start the module provider if its configured and return the
         # socket_path for including in module_args
-        if self._play_context.provider:
+        if self._play_context.connection == 'local' and self._play_context.provider:
             display.vvv("using provider %s" % self._play_context.provider, self._play_context.remote_addr)
-            #provider = self._shared_loader_obj.provider_loader.get(self._play_context.provider, class_only=True)
-            #task_vars['ansible_socket'] = provider.start(self._play_context)
-
-            #provider = provider_loader(self._play_context.provider)
             provider = self._shared_loader_obj.provider_loader(self._play_context.provider).get('provider', class_only=True)
             task_vars['ansible_socket'] = provider.start(self._play_context)
 

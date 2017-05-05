@@ -141,7 +141,6 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         self._running = True
         display.display('provider is running', log_only=True)
 
-    @abstractproperty
     def package(self):
         pass
 
@@ -173,6 +172,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
 
         connection = connection_loader.get(self._play_context.connection, self._play_context, sys.stdin)
         connection._connect()
+
         if not connection.connected:
             raise AnsibleConnectionFailure('unable to connect to remote host %s' % self._play_context.remote_addr)
 
@@ -212,9 +212,9 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         lk_path = unfrackpath("%s/.ansible_pc_lock" % tmp_path)
 
         ssh = connection_loader.get('ssh', class_only=True)
-        cp = ssh._create_control_path(play_context.remote_addr, play_context.port, play_context.remote_user)
+        cp = ssh._create_control_path(play_context.remote_addr, play_context.port, play_context.connection_user)
         socket_path = unfrackpath(cp % dict(directory=tmp_path))
-        display.vvvv('connection socket_path: %s' % socket_path, play_context.remote_addr)
+        display.vvvv('connection socket_path is %s' % socket_path, play_context.remote_addr)
 
         lock_fd = os.open(lk_path, os.O_RDWR|os.O_CREAT, 0o600)
         fcntl.lockf(lock_fd, fcntl.LOCK_EX)
