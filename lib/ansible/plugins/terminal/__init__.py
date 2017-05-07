@@ -56,9 +56,7 @@ class TerminalBase(with_metaclass(ABCMeta, object)):
 
     def _get_prompt(self):
         """ Returns the current prompt from the device"""
-        for cmd in ['\n', 'prompt()']:
-            rc, out, err = self._exec_cli_command(cmd)
-        return out
+        return str(self._connection._matched_prompt).strip()
 
     def on_open_shell(self):
         """Called after the SSH session is established
