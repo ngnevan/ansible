@@ -26,6 +26,7 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+import os
 import socket
 import struct
 import signal
@@ -99,6 +100,9 @@ class Provider:
         if params:
             req['params'] = params
 
+        if not os.path.exists(self._module._socket_path):
+            self._module.fail_json(msg='provider socket does not exist, is the provider running?')
+
         try:
             sf = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sf.connect(self._module._socket_path)
@@ -120,13 +124,22 @@ class Provider:
         except ValueError as exc:
             self._module.fail_json(msg=str(exc))
 
-        if 'error' in response:
-            err = response['error']
-            msg = err.get('data') or err['message']
-            self._module.fail_json(msg=msg, code=err['code'])
-
         if response['id'] != reqid:
             self._module.fail_json(msg='invalid id received')
 
         return response
+
+def execute_module(module, params, timeout=30, error_on_missing=True):
+    provider = Provider(module)
+    reply = provider.exec_module(module._name, params, timeout)
+
+    if 'error' in reply:
+        code = reply['error']['code']
+        msg = reply['error'].get('data') or reply['error']['message']
+        if all((code == -32000, not error_on_missing)):
+            return reply['error']
+        module.fail_json(msg=msg)
+
+    return reply.get('result')
+
 

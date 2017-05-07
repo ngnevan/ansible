@@ -202,7 +202,7 @@ class Connection(_Connection):
     def alarm_handler(self, signum, frame):
         """Alarm handler raised in case of command timeout """
         display.display('closing shell due to sigalarm', log_only=True)
-        self.close_shell()
+        self._shell.close()
 
     def exec_command(self, cmd):
         """Executes the cmd on in the shell and returns the output

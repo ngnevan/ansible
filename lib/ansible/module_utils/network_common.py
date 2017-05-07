@@ -151,16 +151,3 @@ class ComplexList(ComplexDict):
         if not isinstance(values, (list, tuple)):
             raise TypeError('value must be an ordered iterable')
         return [(super(ComplexList, self).__call__(v)) for v in values]
-
-
-def execute_module(module, params):
-    provider = Provider(module)
-    reply = provider.exec_module(module._name, params)
-
-    if 'error' in reply:
-        err = reply['error']
-        msg = err.get('data') or err['message']
-        module.fail_json(msg=msg)
-
-    return reply.get('result')
-

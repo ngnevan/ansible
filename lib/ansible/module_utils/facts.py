@@ -36,6 +36,7 @@ from ansible.module_utils.basic import get_all_subclasses
 from ansible.module_utils.six import PY3, iteritems
 from ansible.module_utils.six.moves import configparser, StringIO, reduce
 from ansible.module_utils._text import to_native, to_text
+from ansible.module_utils.connection import execute_module
 
 try:
     import selinux
@@ -4030,7 +4031,11 @@ def get_all_facts(module):
             for (k, v) in ohai_ds.items():
                 setup_options['ohai_%s' % k.replace('-', '_')] = v
 
-    facts = ansible_facts(module, additional_subsets)
+
+    if module._socket_path:
+        facts = execute_module(module, module.params, timeout=module.params['gather_timeout'], error_on_missing=False) or {}
+    else:
+        facts = ansible_facts(module, additional_subsets)
 
     for (k, v) in facts.items():
         setup_options["ansible_%s" % k.replace('-', '_')] = v
