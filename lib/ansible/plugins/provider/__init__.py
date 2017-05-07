@@ -236,7 +236,9 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         lock_fd = os.open(lk_path, os.O_RDWR|os.O_CREAT, 0o600)
         fcntl.lockf(lock_fd, fcntl.LOCK_EX)
 
-        if not os.path.exists(socket_path):
+        if os.path.exists(socket_path):
+            display.display('connecting to existing socket %s' % socket_path, log_only=True)
+        else:
             pid = do_fork()
             if pid == 0:
                 try:
