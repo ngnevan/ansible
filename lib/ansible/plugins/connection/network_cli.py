@@ -21,7 +21,6 @@ __metaclass__ = type
 import re
 import socket
 import json
-import signal
 import traceback
 import logging
 
@@ -197,12 +196,12 @@ class Connection(_Connection):
                     return True
 
         if errored_response:
-            raise AnsibleError(errored_response)
+            raise AnsibleConnectionFailure(errored_response)
 
     def alarm_handler(self, signum, frame):
         """Alarm handler raised in case of command timeout """
         display.display('closing shell due to sigalarm', log_only=True)
-        self._shell.close()
+        self.close()
 
     def exec_command(self, cmd):
         """Executes the cmd on in the shell and returns the output
@@ -210,17 +209,16 @@ class Connection(_Connection):
         try:
             obj = json.loads(cmd)
         except (ValueError, TypeError):
-            obj = str(cmd).strip()
+            obj = {'command': str(cmd).strip()}
 
-        if not signal.getsignal(signal.SIGALRM):
-            signal.signal(signal.SIGALRM, self.alarm_handler)
-        signal.alarm(self._play_context.timeout)
+        kwargs = ('command', 'prompts', 'answer', 'send_only')
+        if not set(obj.keys()).issubset(kwargs):
+            return (1, '', 'invalid params')
 
         try:
-            out = self.send(obj)
+            out = self.send(**obj)
         except (AnsibleConnectionFailure, ValueError) as exc:
             return (1, '', str(exc))
 
-        signal.alarm(0)
         return (0, out, '')
 

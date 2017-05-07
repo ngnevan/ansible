@@ -40,7 +40,7 @@ from ansible.module_utils.connection import send_data, recv_data
 from ansible.module_utils.six import with_metaclass, iteritems
 from ansible.module_utils._text import to_bytes, to_native
 from ansible.utils.path import unfrackpath, makedirs_safe
-from ansible.errors import AnsibleConnectionFailure, AnsibleError
+from ansible.errors import AnsibleConnectionFailure
 from ansible.utils.display import Display
 
 
@@ -208,13 +208,10 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         if not module:
             return self.missing_provider(module_name)
 
-        try:
-            signal.signal(signal.SIGALRM, self.module_timeout)
-            signal.alarm(timeout)
-            result = module.run(module_params)
-            signal.alarm(0)
-        finally:
-            return self.internal_error('module timeout value exceeded')
+        signal.signal(signal.SIGALRM, self.module_timeout)
+        signal.alarm(timeout)
+        result = module.run(module_params)
+        signal.alarm(0)
 
         if module.warnings:
             result['warnings'] = module.warnings
