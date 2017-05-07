@@ -116,20 +116,19 @@ class Connection(ConnectionBase):
         except RPCError as exc:
             raise AnsibleError(str(exc))
 
-    @ensure_connect
     def exec_command(self, request):
         """Sends the request to the node and returns the reply
         """
-        obj = json.loads(request)
-
-        self._rpc_objects.append(self._netconf)
+        req = to_ele(request)
+        if req is None:
+            return (1, '', 'unable to parse request')
 
         try:
-            response = self._exec_rpc(obj)
-            return (0, response, '')
+            reply = self._manager.rpc(req)
+        except RPCError as exc:
+            return (1, '', to_xml(exc.xml))
 
-        except (AnsibleConnectionFailure, ValueError) as exc:
-            return (1, '', str(exc))
+        return (0, reply.data_xml, '')
 
     def put_file(self, in_path, out_path):
         """Transfer a file from local to remote"""

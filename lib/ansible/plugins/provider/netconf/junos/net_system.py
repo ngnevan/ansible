@@ -22,7 +22,8 @@ __metaclass__ = type
 from xml.etree.ElementTree import Element, SubElement
 from xml.etree.ElementTree import tostring
 
-from ansible.plugins.provider.netconf.junos import NetworkModule as _NetworkModule
+from ansible.plugins.provider.base import ProviderModuleBase
+from ansible.plugins.provider.netconf.junos import Netconf
 from ansible.module_utils.six import iteritems
 
 try:
@@ -32,7 +33,7 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(_NetworkModule):
+class ProviderModule(ProviderModuleBase, Netconf):
 
     def run(self, module_params):
         """Implements module net_system
@@ -48,7 +49,7 @@ class NetworkModule(_NetworkModule):
 
         if diff:
             result['changed'] = True
-            if self._diff:
+            if self.diff:
                 result['diff'] = {'prepared': diff}
 
         return result

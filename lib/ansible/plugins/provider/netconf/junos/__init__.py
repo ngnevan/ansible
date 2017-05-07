@@ -23,7 +23,7 @@ from xml.etree.ElementTree import Element, SubElement
 from xml.etree.ElementTree import tostring, fromstring
 
 from ansible.module_utils.six import iteritems, string_types
-from ansible.plugins.provider.netconf import NetworkBase
+from ansible.plugins.provider.netconf import NetconfBase
 
 ACTIONS = frozenset(['merge', 'override', 'replace', 'update', 'set'])
 JSON_ACTIONS = frozenset(['merge', 'override', 'update'])
@@ -37,30 +37,31 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(NetworkBase):
+class Netconf(NetconfBase):
 
     def load_config(self, config):
         """Load the config into the remote device
         """
         diff = None
         try:
-            self._connection.lock_configuration()
+            self.lock_configuration()
 
-            reply = self._connection.load_configuration(config)
+            reply = self.load_configuration(config)
 
-            self._connection.validate()
+            self.validate()
 
-            reply = self._connection.get_configuration(compare=True, config_format='text')
+            reply = self.get_configuration(compare=True, config_format='text')
             output = fromstring(reply).find('.//configuration-output')
             diff = str(output.text).strip()
 
-            if not self._check_mode:
-                self._connection.commit_configuration()
-            else:
-                self._connection.discard_changes()
+            if diff:
+                if not self.check_mode:
+                    self.commit_configuration()
+                else:
+                    self.discard_changes()
 
         finally:
-            self._connection.unlock_configuration()
+            self.unlock_configuration()
 
         return diff
 

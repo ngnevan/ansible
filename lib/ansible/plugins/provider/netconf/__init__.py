@@ -32,7 +32,6 @@ from xml.etree.ElementTree import fromstring, tostring
 
 from ansible.module_utils.six import with_metaclass, iteritems
 
-
 try:
     from __main__ import display
 except ImportError:
@@ -43,16 +42,7 @@ except ImportError:
 NS_MAP = {'nc': "urn:ietf:params:xml:ns:netconf:base:1.0"}
 
 
-class NetworkBase(with_metaclass(ABCMeta, object)):
-
-    def __init__(self, connection, check_mode, diff):
-        self._connection = connection
-        self.check_mode = check_mode
-        self.diff = diff
-
-    @abstractmethod
-    def run(self, module_params):
-        pass
+class NetconfBase(with_metaclass(ABCMeta, object)):
 
     def invoke(self, name, *args, **kwargs):
         meth = getattr(self, name, None)
@@ -62,7 +52,8 @@ class NetworkBase(with_metaclass(ABCMeta, object)):
     def send_request(self, obj, check_rc=False):
         """Send the XML request to the remote device and return the reply
         """
-        reply = self._connection.rpc(obj)
+        request = tostring(obj)
+        rc, out, err = self._connection.exec_command(request)
 
         if check_rc:
             fake_parent = Element('root')
@@ -70,7 +61,7 @@ class NetworkBase(with_metaclass(ABCMeta, object)):
 
             error_list = fake_parent.findall('.//nc:rpc-error', NS_MAP)
             if error_list:
-                raise AnsibleRpcError(str(err))
+                raise AnsibleError(str(err))
 
             warnings = []
             for rpc_error in error_list:
@@ -80,10 +71,10 @@ class NetworkBase(with_metaclass(ABCMeta, object)):
                 if severity == 'warning':
                     display.display('WARNING: %s' % message, log_only=True)
                 else:
-                    raise AnsibleRpcError(str(err))
+                    raise AnsibleError(str(err))
             return warnings
 
-        return tostring(reply)
+        return out
 
     def children(self, root, iterable):
         for item in iterable:
@@ -91,4 +82,31 @@ class NetworkBase(with_metaclass(ABCMeta, object)):
                 ele = SubElement(ele, item)
             except NameError:
                 ele = SubElement(root, item)
+
+    def lock(self, target='candidate'):
+        obj = Element('lock')
+        self.children(obj, ('target', target))
+        return self.send_request(obj)
+
+    def unlock(self, target='candidate'):
+        obj = Element('unlock')
+        self.children(obj, ('target', target))
+        return self.send_request(obj)
+
+    def commit(self):
+        return self.send_request(Element('commit'))
+
+    def discard_changes(self):
+        return self.send_request(Element('discard-changes'))
+
+    def validate(self):
+        obj = Element('validate')
+        self.children(obj, ('source', 'candidate'))
+        return self.send_request(obj)
+
+    def get_config(self, source='running', filter=None):
+        obj = Element('get-config')
+        self.children(obj, ('source', source))
+        self.children(obj, ('filter', filter))
+        return self.send_request(obj)
 
