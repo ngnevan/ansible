@@ -21,7 +21,8 @@ __metaclass__ = type
 
 import re
 
-from ansible.plugins.network.cliconf.eos import NetworkModule as _NetworkModule
+from ansible.plugins.provider.base import ProviderModuleBase
+from ansible.plugins.provider.cliconf.nxos import Cliconf
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.network_common import to_list
 
@@ -32,12 +33,12 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(_NetworkModule):
+class ProviderModule(ProviderModuleBase, Cliconf):
 
     def run(self, module_params):
         """ Transform the entity to a set of CLI configuration commands
         """
-        config = self._connection.get_config()
+        config = self.get_config()
 
         instance = {
             'hostname': self.parse_hostname(config, module_params),
@@ -61,8 +62,8 @@ class NetworkModule(_NetworkModule):
         result = {'changed': False}
 
         if commands:
-            diff = self.load_config(commands)
-            if self._diff:
+            diff = self.edit_config(commands)
+            if self.diff:
                 result['diff'] = diff
             result['changed'] = True
 

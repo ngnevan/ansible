@@ -32,7 +32,7 @@ EXAMPLES = """
 RETURN = """
 """
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.network_common import execute_module
+from ansible.module_utils.connection import execute_module
 
 
 def main():
@@ -46,13 +46,16 @@ def main():
         name_servers=dict(type='list'),
         vrf=dict(),
 
-        state=dict(default='present', choices=['present', 'absent'])
+        state=dict(default='present', choices=['present', 'absent']),
+
+        module_timeout=dict(default=30, type='int')
     )
 
     module = AnsibleModule(argument_spec=argument_spec,
                            supports_check_mode=True)
 
     result = execute_module(module, module.params)
+
     module.exit_json(**result)
 
 if __name__ == '__main__':
