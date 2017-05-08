@@ -21,7 +21,10 @@ __metaclass__ = type
 
 import re
 
-from ansible.plugins.network.cliconf import NetworkBase
+from itertools import chain
+
+from ansible.plugins.provider.cliconf import CliconfBase
+from ansible.plugins.provider.cliconf import enable_mode
 
 try:
     from __main__ import display
@@ -30,18 +33,27 @@ except ImportError:
     display = Display()
 
 
-class NetworkModule(NetworkBase):
+class Cliconf(CliconfBase):
 
-    def load_config(self, commands):
+    @enable_mode
+    def edit_config(self, commands):
         diff = {}
 
-        if self._diff:
-            diff['before'] = self._connection.get_config(source='running')
+        if self.diff:
+            diff['before'] = self.get_config(source='running')
 
-        self._connection.edit_config(commands)
+        if not self.check_mode:
+            for command in chain(['configure'], to_list(commands), ['end']):
+                self.send_command(command)
 
-        if self._diff:
-            diff['after'] = self._connection.get_config(source='running')
+        if diff:
+            diff['after'] = self.get_config(source='running')
 
         return diff
+
+    @enable_mode
+    def get_config(self, source='running'):
+        lookup = {'running': 'running-config', 'startup': 'startup-config'}
+        output = self.send_command('show %s' % lookup[source])
+        return str(output).strip()
 
