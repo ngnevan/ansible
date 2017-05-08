@@ -229,7 +229,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         lk_path = unfrackpath("%s/.ansible_pc_lock" % tmp_path)
 
         ssh = connection_loader.get('ssh', class_only=True)
-        cp = ssh._create_control_path(play_context.remote_addr, play_context.port, play_context.connection_user)
+        cp = ssh._create_control_path(play_context.remote_addr, play_context.provider, play_context.connection_user)
         socket_path = unfrackpath(cp % dict(directory=tmp_path))
         display.vvvv('connection socket_path is %s' % socket_path, play_context.remote_addr)
 
