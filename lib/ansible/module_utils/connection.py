@@ -100,6 +100,9 @@ class Provider:
         if params:
             req['params'] = params
 
+        if not self._module._socket_path:
+            self._module.fail_json(msg='provider support not available for this host')
+
         if not os.path.exists(self._module._socket_path):
             self._module.fail_json(msg='provider socket does not exist, is the provider running?')
 
