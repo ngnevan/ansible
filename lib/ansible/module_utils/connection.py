@@ -130,6 +130,10 @@ class Provider:
         return response
 
 def execute_module(module, params, timeout=30, error_on_missing=True):
+    if 'module_timeout' in params:
+        timeout = params['module_timeout'] or 30
+        del params['module_timeout']
+
     provider = Provider(module)
     reply = provider.exec_module(module._name, params, timeout)
 
