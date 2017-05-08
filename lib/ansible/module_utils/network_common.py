@@ -27,9 +27,6 @@
 #
 from ansible.module_utils.six import iteritems
 from ansible.module_utils.basic import AnsibleFallbackNotFound
-from ansible.module_utils.connection import Provider
-from ansible.plugins import PluginLoader
-
 
 def to_list(val):
     if isinstance(val, (list, tuple, set)):
@@ -39,7 +36,7 @@ def to_list(val):
     else:
         return list()
 
-class ComplexDict(object):
+class Entity(object):
     """Transforms a dict to with an argument spec
 
     This class will take a dict and apply an Ansible argument spec to the
@@ -53,7 +50,7 @@ class ComplexDict(object):
             display=dict(default='text', choices=['text', 'json']),
             validate=dict(type='bool')
         )
-        transform = ComplexDict(argument_spec, module)
+        transform = Entity(argument_spec, module)
         value = dict(command='foo')
         result = transform(value)
         print result
@@ -70,29 +67,40 @@ class ComplexDict(object):
 
     """
 
-    def __init__(self, attrs, module):
-        self._attributes = attrs
+    def __init__(self, module, attrs=None, args=[], keys=None, from_argspec=False):
+        self._attributes = attrs or {}
         self._module = module
+
+        for arg in args:
+            self._attributes[arg] = dict()
+            if from_argspec:
+                self._attributes[arg]['read_from'] = arg
+            if keys and arg in keys:
+                self._attributes[arg]['key'] = True
+
         self.attr_names = frozenset(self._attributes.keys())
 
-        self._has_key = False
+        _has_key = False
+
         for name, attr in iteritems(self._attributes):
             if attr.get('read_from'):
-                spec = self._module.argument_spec.get(attr['read_from'])
-                if not spec:
+                if attr['read_from'] not in self._module.argument_spec:
                     raise ValueError('argument_spec %s does not exist' %  attr['read_from'])
+                spec = self._module.argument_spec.get(attr['read_from'])
                 for key, value in iteritems(spec):
                     if key not in attr:
                         attr[key] = value
 
             if attr.get('key'):
-                if self._has_key:
+                if _has_key:
                     raise ValueError('only one key value can be specified')
-                self_has_key = True
+                _has_key = True
                 attr['required'] = True
 
+    def serialize(self):
+        return self._attributes
 
-    def _dict(self, value):
+    def to_dict(self, value):
         obj = {}
         for name, attr in iteritems(self._attributes):
             if attr.get('key'):
@@ -101,16 +109,17 @@ class ComplexDict(object):
                 obj[name] = attr.get('default')
         return obj
 
-    def __call__(self, value):
+    def __call__(self, value, strict=True):
         if not isinstance(value, dict):
-            value = self._dict(value)
+            value = self.to_dict(value)
 
-        unknown = set(value).difference(self.attr_names)
-        if unknown:
-            raise ValueError('invalid keys: %s' % ','.join(unknown))
+        if strict:
+            unknown = set(value).difference(self.attr_names)
+            if unknown:
+                raise ValueError('invalid keys: %s' % ','.join(unknown))
 
         for name, attr in iteritems(self._attributes):
-            if not value.get(name):
+            if value.get(name) is None:
                 value[name] = attr.get('default')
 
             if attr.get('fallback') and not value.get(name):
@@ -141,13 +150,24 @@ class ComplexDict(object):
                 value_type = attr.get('type', 'str')
                 type_checker = self._module._CHECK_ARGUMENT_TYPES_DISPATCHER[value_type]
                 type_checker(value[name])
+            else:
+                value[name] = self._module.params[name]
 
         return value
 
-class ComplexList(ComplexDict):
-    """Extends ```ComplexDict``` to handle a  list of dicts """
 
-    def __call__(self, values):
-        if not isinstance(values, (list, tuple)):
-            raise TypeError('value must be an ordered iterable')
-        return [(super(ComplexList, self).__call__(v)) for v in values]
+class EntityCollection(Entity):
+    """Extends ```Entity``` to handle a list of dicts """
+
+    def __call__(self, iterable, strict=False):
+        if iterable is None:
+            iterable = [super(EntityCollection, self).__call__(self._module.params, strict)]
+
+        if not isinstance(iterable, (list, tuple)):
+            raise TypeError('value must be an iterable')
+
+        return [(super(EntityCollection, self).__call__(i, strict)) for i in iterable]
+
+
+ComplexDict = Entity
+ComplexList = EntityCollection
