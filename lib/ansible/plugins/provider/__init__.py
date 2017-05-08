@@ -107,12 +107,14 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         self._state = 'stopped'
         self._connection = None
 
+    daemon = property(lambda self: self._socket_path is not None)
+
     def connect(self):
         if self._state == 'running':
-            display.display('provider socket is already running', log_only=True)
+            display.display('provider socket is already running', log_only=self.daemon)
             return
 
-        display.display('starting provider socket (timeout=%s)' % self._play_context.timeout, log_only=True)
+        display.display('starting provider socket (timeout=%s)' % self._play_context.timeout, log_only=self.daemon)
 
         self._state = 'connecting'
         self._start_time = datetime.datetime.now()
@@ -124,17 +126,17 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
             raise
 
         connection_time = datetime.datetime.now() - self._start_time
-        display.display('connection established to %s in %s' % (self._play_context.remote_addr, connection_time), log_only=True)
+        display.display('connection established to %s in %s' % (self._play_context.remote_addr, connection_time), log_only=self.daemon)
 
-        if self._state == 'connecting':
+        if self._state == 'connecting' and self.daemon:
             self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.socket.bind(self._socket_path)
             self.socket.listen(1)
             self._state = 'running'
-            display.display('local socket is set to listening', log_only=True)
+            display.display('local socket is set to listening', log_only=self.daemon)
 
-        display.display('provider control socket connection completed successfully', log_only=True)
-        display.display('  state is %s' % self._state, log_only=True)
+        display.display('provider control socket connection completed successfully', log_only=self.daemon)
+        display.display('  state is %s' % self._state, log_only=self.daemon)
 
     def package(self):
         pass
@@ -143,25 +145,28 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         return self._state == 'running'
 
     def connect_timeout(self, signum, frame):
-        display.display('timeout trying to connect to remote device', log_only=True)
-        self.close()
+        display.display('timeout trying to connect to remote device', log_only=self.daemon)
+        self.terminate()
 
     def module_timeout(self, signum, frame):
-        display.display('timeout running provider module', log_only=True)
-        self.close()
+        display.display('timeout running provider module', log_only=self.daemon)
+        self.terminate()
 
-    def close(self):
+    def terminate(self):
+        display.display('terminate provider requested', log_only=self.daemon)
+
         if self._state not in ('connecting', 'running'):
-            display.display('provider socket is not active', log_only=True)
+            display.display('provider socket is not active', log_only=self.daemon)
             return
 
         self._state = 'closing'
         try:
-            display.display('closing local listener socket %s' % self._socket_path, log_only=True)
-            self.socket.close()
+            if self.daemon:
+                display.display('closing local listener socket %s' % self._socket_path, log_only=self.daemon)
+                self.socket.close()
 
             if self._connection and self._connection.connected:
-                display.display('calling close on the connection', log_only=True)
+                display.display('calling close on the connection', log_only=self.daemon)
                 self._connection.close()
 
         except Exception as e:
@@ -169,7 +174,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
 
         finally:
             if os.path.exists(self._socket_path):
-                display.display('removing the provider control socket', log_only=True)
+                display.display('removing the provider control socket', log_only=self.daemon)
                 os.remove(self._socket_path)
 
         self._state = 'shutdown'
@@ -182,10 +187,10 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         display.display(
             'creating new control socket for host %s:%s as user %s' %
             (self._play_context.remote_addr, self._play_context.port, self._play_context.remote_user),
-            log_only=True
+            log_only=self.daemon
         )
 
-        display.display("using connection plugin %s" % self._play_context.connection, log_only=True)
+        display.display("using connection plugin %s" % self._play_context.connection, log_only=self.daemon)
 
         connection = connection_loader.get(self._play_context.connection, self._play_context, sys.stdin)
         connection._connect()
@@ -196,12 +201,12 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         return connection
 
     def exec_module(self, module_name, module_params, timeout=30):
-        display.display('running exec_module (timeout=%s)' % timeout, log_only=True)
+        display.display('running exec_module (timeout=%s)' % timeout, log_only=self.daemon)
         check_mode = self._play_context.check_mode
         diff = self._play_context.diff
 
         loader = plugin_loader(package=self.package)
-        display.display('plugin loader package is %s' % loader.package, log_only=True)
+        display.display('plugin loader package is %s' % loader.package, log_only=self.daemon)
 
         module = loader.get(module_name, self._connection, check_mode, diff)
 
@@ -210,6 +215,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
 
         signal.signal(signal.SIGALRM, self.module_timeout)
         signal.alarm(timeout)
+
         result = module.run(module_params)
         signal.alarm(0)
 
@@ -224,7 +230,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
 
         # create the persistent connection dir if need be and create the paths
         # which we will be using later
-        tmp_path = unfrackpath("$HOME/.ansible/pc")
+        tmp_path = unfrackpath(C.PERSISTENT_CONTROL_PATH_DIR)
         makedirs_safe(tmp_path)
         lk_path = unfrackpath("%s/.ansible_pc_lock" % tmp_path)
 
@@ -237,7 +243,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         fcntl.lockf(lock_fd, fcntl.LOCK_EX)
 
         if os.path.exists(socket_path):
-            display.display('connecting to existing socket %s' % socket_path, log_only=True)
+            display.vvvv('connecting to existing socket %s' % socket_path, play_context.remote_addr)
         else:
             pid = do_fork()
             if pid == 0:
@@ -245,11 +251,11 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
                     server = cls(socket_path, play_context)
                     server.connect()
                 except:
-                    display.display(traceback.format_exc(), log_only=True)
+                    display.display(traceback.format_exc(), log_only=self.daemon)
                 else:
                     fcntl.lockf(lock_fd, fcntl.LOCK_UN)
                     os.close(lock_fd)
-                    display.display('provider socket running? %s' % server.is_running(), log_only=True)
+                    display.vvvv('provider socket running? %s' % server.is_running(), play_context.remote_addr)
                     if not server.is_running():
                         os.remove(socket_path)
                     else:
@@ -286,7 +292,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
                 signal.alarm(C.PERSISTENT_CONNECT_TIMEOUT)
                 try:
                     (s, addr) = self.socket.accept()
-                    display.display('incoming request accepted on persistent socket', log_only=True)
+                    display.display('incoming request accepted on persistent socket', log_only=self.daemon)
                     # clear the alarm
                     signal.alarm(0)
                 except:
@@ -333,7 +339,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
                             try:
                                 result = rpc_method(*args, **kwargs)
                             except Exception as exc:
-                                display.display(traceback.format_exc(), log_only=True)
+                                display.display(traceback.format_exc(), log_only=self.daemon)
                                 error = self.internal_error(data=str(exc))
                                 response = json.dumps(error)
                             else:
@@ -352,15 +358,15 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
                 s.close()
 
         except Exception as e:
-            display.display(traceback.format_exc(), log_only=True)
+            display.display(traceback.format_exc(), log_only=self.daemon)
 
         finally:
             # when done, close the connection properly and cleanup
             # the socket file so it can be recreated
-            self.close()
+            self.terminate()
             end_time = datetime.datetime.now()
             delta = end_time - self._start_time
-            display.display('provider socket shutdown completed successfully, provider was active for %s secs' % delta, log_only=True)
+            display.display('provider socket shutdown completed successfully, provider was active for %s secs' % delta, log_only=self.daemon)
 
     header = lambda self: {'jsonrpc': '2.0', 'id': self._identifier}
 
