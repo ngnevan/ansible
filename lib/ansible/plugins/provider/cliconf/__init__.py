@@ -21,11 +21,14 @@ __metaclass__ = type
 
 import re
 import copy
+import json
 
 from functools import wraps
 from abc import ABCMeta, abstractmethod
 
-from ansible.module_utils.six import with_metaclass, iteritems
+from ansible.module_utils.six import with_metaclass
+from ansible.module_utils.six import iteritems, string_types
+from ansible.module_utils.network_common import to_list
 from ansible.utils.display import Display
 
 try:
@@ -97,7 +100,7 @@ class CliconfBase(with_metaclass(ABCMeta, object)):
             return sorted(val)
         return val
 
-    def diff_dict(self, current, desired, path=None):
+    def diff_params(self, current, desired, path=None):
         """Diff two module_params structures and return updated keys
 
         This will diff two dict objects and return a list of objects that
@@ -132,5 +135,30 @@ class CliconfBase(with_metaclass(ABCMeta, object)):
         for item in set(desired).difference(current):
             objects.append((item, 'add'))
         return objects
+
+    def from_json(self, obj):
+        try:
+            return json.loads(obj)
+        except (ValueError, TypeError) as exc:
+            raise AnsibleError('unable to load json object')
+
+    def transform_dict(self, data, keymap, *args, **kwargs):
+        item = {}
+        for key, value, default in keymap:
+            if value is None:
+                item[key] = default
+            elif isinstance(value, string_types):
+                item[key] = data.get(value) or default
+            elif callable(value):
+                item[key] = value(*args, **kwargs)
+            else:
+                raise AnsibleError('unknown value in keymap')
+        return item
+
+    def transform_list(self, iterable, keymap, *args, **kwargs):
+        items = list()
+        for item in to_list(iterable):
+            items.append(self.transform_dict(item, keymap, *args, **kwargs))
+        return items
 
 

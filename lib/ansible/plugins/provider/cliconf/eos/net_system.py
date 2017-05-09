@@ -58,7 +58,6 @@ class ProviderModule(ProviderModuleBase, Cliconf):
                 updates = method(value, module_params, instance)
                 commands.extend(to_list(updates))
 
-
         result = {'changed': False}
 
         if commands:

@@ -25,6 +25,7 @@ from itertools import chain
 
 from ansible.plugins.provider.cliconf import CliconfBase
 from ansible.plugins.provider.cliconf import enable_mode
+from ansible.module_utils.network_common import to_list
 
 try:
     from __main__ import display

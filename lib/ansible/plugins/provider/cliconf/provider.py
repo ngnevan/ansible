@@ -72,13 +72,13 @@ class Provider(ProviderBase):
         display.display(
             'creating new control socket for host %s:%s as user %s' %
             (self._play_context.remote_addr, self._play_context.port, self._play_context.remote_user),
-            log_only=True
+            log_only=self.daemon
         )
 
         connection = connection_loader.get('paramiko_ssh', self._play_context, '/dev/null')
         connection._connect()
 
-        display.display('ssh connection completed successfully', log_only=True)
+        display.display('ssh connection completed successfully', log_only=self.daemon)
 
         self._shell = connection.ssh.invoke_shell()
         self._shell.settimeout(self._play_context.timeout)
@@ -91,38 +91,39 @@ class Provider(ProviderBase):
         if not self._terminal:
             raise AnsibleConnectionFailure('unable to load terminal')
 
-        display.display('loaded terminal plugin for network_os %s' % network_os, log_only=True)
+        display.display('loaded terminal plugin for network_os %s' % network_os, log_only=self.daemon)
 
         self.receive()
 
-        display.display('firing event: on_open_shell()', log_only=True)
+        display.display('firing event: on_open_shell()', log_only=self.daemon)
         self._terminal.on_open_shell()
 
         if getattr(self._play_context, 'become', None):
-            display.display('firing event: on_authorize', log_only=True)
+            display.display('firing event: on_authorize', log_only=self.daemon)
             auth_pass = self._play_context.become_pass
             self._terminal.on_authorize(passwd=auth_pass)
 
-        display.display('ssh session negotiation has completed successfully', log_only=True)
+        display.display('ssh session negotiation has completed successfully', log_only=self.daemon)
 
+        setattr(self, '_ssh', connection)
         return self
 
     def close(self):
         """Close the active connection to the device
         """
-        display.display("closing ssh connection to device", log_only=True)
+        display.display("closing ssh connection to device", log_only=self.daemon)
         if self._shell:
-            display.display("firing event: on_close_shell()", log_only=True)
+            display.display("firing event: on_close_shell()", log_only=self.daemon)
             self._terminal.on_close_shell()
 
         if self._shell:
             self._shell.close()
             self._shell = None
-            display.display("cli session is now closed", log_only=True)
+            display.display("cli session is now closed", log_only=self.daemon)
 
-        super(Connection, self).close()
+        self._ssh.close()
 
-        display.display("ssh connection has been closed successfully", log_only=True)
+        display.display("ssh connection has been closed successfully", log_only=self.daemon)
 
     def receive(self, command=None, prompts=None, answer=None):
         """Handles receiving of output from command
@@ -160,7 +161,7 @@ class Provider(ProviderBase):
             return self.receive(command, prompts, answer)
 
         except (socket.timeout, AttributeError) as exc:
-            display.display(traceback.format_exc(), log_only=True)
+            display.display(traceback.format_exc(), log_only=self.daemon)
             raise AnsibleConnectionFailure("timeout trying to send command: %s" % command.strip())
 
     def _strip(self, data):
@@ -213,7 +214,7 @@ class Provider(ProviderBase):
 
     def alarm_handler(self, signum, frame):
         """Alarm handler raised in case of command timeout """
-        display.display('closing shell due to sigalarm', log_only=True)
+        display.display('closing shell due to sigalarm', log_only=self.daemon)
         self.close()
 
     def exec_command(self, cmd):
