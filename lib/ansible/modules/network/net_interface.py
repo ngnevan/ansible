@@ -19,7 +19,7 @@
 ANSIBLE_METADATA = {
     'metadata_version': '1.0',
     'status': ['preview'],
-    'supported_by': 'community'
+    'supported_by': 'core'
 }
 
 
@@ -31,6 +31,7 @@ EXAMPLES = """
 
 RETURN = """
 """
+import os
 import copy
 
 from ansible.module_utils.basic import AnsibleModule
@@ -43,45 +44,45 @@ def main():
     """ main entry point for module execution
     """
     argument_spec = dict(
-        username=dict(),
+        name=dict(),
         collection=dict(type='list'),
 
-        password=dict(no_log=True),
-        update_password=dict(default='always', choices=['on_create', 'always']),
-        sshkey=dict(),
+        description=dict(),
+        enabled=dict(type='bool'),
 
         state=dict(default='present', choices=['present', 'absent']),
+        oper_status=dict(default='up', choices=['up', 'down']),
+        neighbors=dict(type='list'),
 
         purge=dict(type='bool', default=False),
+        hold_time=dict(type='int', default=30)
     )
 
-
-    mutually_exclusive = [('username', 'collection')]
+    mutually_exclusive = [('name', 'collection')]
 
     module = AnsibleModule(argument_spec=argument_spec,
                            mutually_exclusive=mutually_exclusive,
                            supports_check_mode=True)
 
-    if module._socket_path is None:
-        module.fail_json(msg='modules requires a provider')
+    collection = copy.deepcopy(module.params['collection']) or to_list(module.params['name'])
 
-    args = frozenset(['username', 'password', 'update_password', 'sshkey', 'state'])
-    keys = frozenset(['username'])
-
-    collection = copy.deepcopy(module.params['collection']) or to_list(module.params)
+    args = frozenset(('name', 'description', 'enabled', 'state', 'oper_status'))
+    keys = frozenset(('name',))
 
     try:
         spec = EntityCollection(module, args=args, keys=keys, from_argspec=True)
         module_params = {
-            'collection': spec(collection),
-            'purge': module.params['purge']
+            'collection': spec(collection, strict=True),
+            'purge': module.params['purge'],
+            'hold_time': module.params['hold_time']
         }
-
-    except ValueError:
+    except:
         exc = get_exception()
         module.fail_json(msg=str(exc))
 
-    result = execute_module(module, module_params)
+    module.exit_json(params=module_params, spec=spec.serialize())
+
+    result = execute_module(module, module.params)
     module.exit_json(**result)
 
 if __name__ == '__main__':
