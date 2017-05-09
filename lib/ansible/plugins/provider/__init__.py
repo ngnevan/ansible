@@ -95,6 +95,8 @@ plugin_loader = partial(
     subdir='provider_plugin'
 )
 
+package = lambda name: 'ansible.plugins.provider.%s' % name
+
 
 class ProviderBase(with_metaclass(ABCMeta, object)):
 
@@ -138,8 +140,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
         display.display('provider control socket connection completed successfully', log_only=self.daemon)
         display.display('  state is %s' % self._state, log_only=self.daemon)
 
-    def package(self):
-        pass
+    package = property(lambda self: package(self.provider))
 
     def is_running(self):
         return self._state == 'running'
@@ -285,15 +286,12 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
     def run(self):
         try:
             while True:
-                # set the alarm, if we don't get an accept before it
-                # goes off we exit (via an exception caused by the socket
-                # getting closed while waiting on accept())
                 signal.signal(signal.SIGALRM, self.connect_timeout)
                 signal.alarm(C.PERSISTENT_CONNECT_TIMEOUT)
+
                 try:
                     (s, addr) = self.socket.accept()
                     display.display('incoming request accepted on persistent socket', log_only=self.daemon)
-                    # clear the alarm
                     signal.alarm(0)
                 except:
                     break
