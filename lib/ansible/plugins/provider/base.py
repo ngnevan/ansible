@@ -22,13 +22,6 @@ __metaclass__ = type
 from abc import ABCMeta, abstractmethod
 
 from ansible.module_utils.six import with_metaclass, iteritems
-from ansible.utils.display import Display
-
-try:
-    from __main__ import display
-except ImportError:
-    from ansible.utils.display import Display
-    display = Display()
 
 
 class ProviderModuleBase(with_metaclass(ABCMeta, object)):
@@ -51,5 +44,6 @@ class ProviderModuleBase(with_metaclass(ABCMeta, object)):
     def warn(self, warning):
         self.warnings.append(warning)
 
-
+    def fail_json(self, msg):
+        return {'failed': True, 'msg': msg}
 
