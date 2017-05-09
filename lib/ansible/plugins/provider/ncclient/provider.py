@@ -66,8 +66,8 @@ class Provider(ProviderBase):
         return context
 
     def create_connection(self):
-        display.display('ssh connection done, stating ncclient', log_only=True)
-        display.display('  network_os is %s' % self._play_context.network_os, log_only=True)
+        display.display(u'ESTABLISH NETCONF CONNECTION FOR USER: {0}'.format(self._play_context.connection_user), log_only=self.daemon)
+        display.display(u'  network_os is {0}'.format(self._play_context.network_os), log_only=self.daemon)
 
         allow_agent = True
         if self._play_context.password is not None:
@@ -96,6 +96,6 @@ class Provider(ProviderBase):
         except SSHUnknownHostError as exc:
             raise AnsibleConnectionFailure(str(exc))
 
-        display.display('ncclient manager object created successfully', log_only=True)
+        display.display(u'netconf session as completed successfully', log_only=self.daemon)
 
         return connection
