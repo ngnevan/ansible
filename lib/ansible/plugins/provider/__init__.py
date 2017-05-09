@@ -100,7 +100,7 @@ package = lambda name: 'ansible.plugins.provider.%s' % name
 
 class ProviderBase(with_metaclass(ABCMeta, object)):
 
-    __rpc__= frozenset(('is_running', 'exec_module', 'exec_command', 'put_file',
+    __rpc__= frozenset(('is_alive', 'exec_module', 'exec_command', 'put_file',
                         'fetch_file', 'close'))
 
     def __init__(self, socket_path, play_context):
@@ -142,7 +142,7 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
 
     package = property(lambda self: package(self.provider))
 
-    def is_running(self):
+    def is_alive(self):
         return self._state == 'running'
 
     def connect_timeout(self, signum, frame):
@@ -252,18 +252,18 @@ class ProviderBase(with_metaclass(ABCMeta, object)):
                     server = cls(socket_path, play_context)
                     server.connect()
                 except:
-                    display.display(traceback.format_exc(), log_only=self.daemon)
+                    display.display(traceback.format_exc(), log_only=True)
                 else:
                     fcntl.lockf(lock_fd, fcntl.LOCK_UN)
                     os.close(lock_fd)
-                    display.vvvv('provider socket running? %s' % server.is_running(), play_context.remote_addr)
-                    if not server.is_running():
+                    display.vvvv('provider socket running? %s' % server.is_alive(), play_context.remote_addr)
+                    if not server.is_alive():
                         os.remove(socket_path)
                     else:
                         server.run()
 
             else:
-                req = json.dumps({'jsonrpc': '2.0', 'method': 'is_running'})
+                req = json.dumps({'jsonrpc': '2.0', 'method': 'is_alive'})
                 resp = {}
                 timeout = play_context.timeout
 
