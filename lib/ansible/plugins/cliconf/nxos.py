@@ -21,11 +21,14 @@ __metaclass__ = type
 
 import re
 
-from ansible.plugins.terminal import TerminalBase
+from itertools import chain
+
+from ansible.plugins.cliconf import CliconfBase, enable_mode
 from ansible.errors import AnsibleConnectionFailure
+from ansible.module_utils.network_common import to_list
 
 
-class TerminalModule(TerminalBase):
+class Cliconf(CliconfBase):
 
     terminal_stdout_re = [
         re.compile(r'[\r\n]?[a-zA-Z]{1}[a-zA-Z0-9-]*[>|#|%](?:\s*)$'),
@@ -46,10 +49,20 @@ class TerminalModule(TerminalBase):
         re.compile(r"user not present")
     ]
 
-    def on_open_shell(self):
+    def _on_open_shell(self):
         try:
-            for cmd in ['terminal length 0', 'terminal width 511']:
-                self._exec_cli_command(cmd)
+            for cmd in ('terminal length 0', 'terminal width 511'):
+                self.send_command(cmd)
         except AnsibleConnectionFailure:
-            raise AnsibleConnectionFailure('unable to set terminal parameters')
+            raise AnsibleConnectionFailure('unable to set cliconf parameters')
 
+    @enable_mode
+    def get_config(self, source='running'):
+        lookup = {'running': 'running-config', 'startup': 'startup-config'}
+        output = self.send_command('show %s' % lookup[source])
+        return str(output).strip()
+
+    @enable_mode
+    def edit_config(self, commands):
+        for command in chain(['configure'], to_list(commands), ['end']):
+            self.send_command(command)

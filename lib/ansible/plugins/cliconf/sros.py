@@ -22,11 +22,11 @@ __metaclass__ = type
 import re
 import json
 
-from ansible.plugins.terminal import TerminalBase
+from ansible.plugins.cliconf import CliconfBase
 from ansible.errors import AnsibleConnectionFailure
 
 
-class TerminalModule(TerminalBase):
+class Cliconf(CliconfBase):
 
     terminal_stdout_re = [
         re.compile(r"[\r\n]?[\w+\-\.:\/\[\]]+(?:\([^\)]+\)){,3}(?:>|#) ?$"),
@@ -37,8 +37,8 @@ class TerminalModule(TerminalBase):
         re.compile(r"Error:"),
     ]
 
-    def on_open_shell(self):
+    def _on_open_shell(self):
         try:
             self._exec_cli_command('environment no more')
         except AnsibleConnectionFailure:
-            raise AnsibleConnectionFailure('unable to set terminal parameters')
+            raise AnsibleConnectionFailure('unable to set cliconf parameters')

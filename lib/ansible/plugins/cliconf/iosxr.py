@@ -19,33 +19,33 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import os
 import re
+import json
 
-from ansible.plugins.terminal import TerminalBase
+from ansible.plugins.cliconf import CliconfBase
 from ansible.errors import AnsibleConnectionFailure
 
-
-class TerminalModule(TerminalBase):
+class Cliconf(CliconfBase):
 
     terminal_stdout_re = [
         re.compile(r"[\r\n]?[\w+\-\.:\/\[\]]+(?:\([^\)]+\)){,3}(?:>|#) ?$"),
-        re.compile(r"\@[\w\-\.]+:\S+?[>#\$] ?$")
+        re.compile(r"\[\w+\@[\w\-\.]+(?: [^\]])\] ?[>#\$] ?$"),
+        re.compile(r']]>]]>[\r\n]?')
     ]
 
     terminal_stderr_re = [
-        re.compile(r"\n\s*Invalid command:"),
-        re.compile(r"\nCommit failed"),
-        re.compile(r"\n\s+Set failed"),
+        re.compile(r"% ?Error"),
+        re.compile(r"% ?Bad secret"),
+        re.compile(r"invalid input", re.I),
+        re.compile(r"(?:incomplete|ambiguous) command", re.I),
+        re.compile(r"connection timed out", re.I),
+        re.compile(r"[^\r\n]+ not found", re.I),
+        re.compile(r"'[^']' +returned error code: ?\d+"),
     ]
 
-    terminal_length = os.getenv('ANSIBLE_VYOS_TERMINAL_LENGTH', 10000)
-
-    def on_open_shell(self):
+    def _on_open_shell(self):
         try:
-            for cmd in ['set terminal length 0', 'set terminal width 512']:
+            for cmd in ['cliconf length 0', 'cliconf width 512', 'cliconf exec prompt no-timestamp']:
                 self._exec_cli_command(cmd)
-            self._exec_cli_command('set terminal length %s' % self.terminal_length)
         except AnsibleConnectionFailure:
-            raise AnsibleConnectionFailure('unable to set terminal parameters')
-
+            raise AnsibleConnectionFailure('unable to set cliconf parameters')

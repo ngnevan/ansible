@@ -22,7 +22,7 @@ __metaclass__ = type
 
 import re
 
-from ansible.plugins.terminal import TerminalBase
+from ansible.plugins.cliconf import CliconfBase
 from ansible.errors import AnsibleConnectionFailure
 
 
@@ -32,7 +32,7 @@ except ImportError:
     from ansible.utils.display import Display
     display = Display()
 
-class TerminalModule(TerminalBase):
+class Cliconf(CliconfBase):
 
     terminal_stdout_re = [
         re.compile(r"[\r\n]?[\w+\-\.:\/\[\]]+(?:\([^\)]+\)){,3}(?:>|#) ?$|%"),
@@ -43,7 +43,7 @@ class TerminalModule(TerminalBase):
         re.compile(r"syntax error,")
     ]
 
-    def on_open_shell(self):
+    def _on_open_shell(self):
         try:
             prompt = self._get_prompt()
             if prompt.strip().endswith('%'):
@@ -52,4 +52,4 @@ class TerminalModule(TerminalBase):
             for c in ['set cli timestamp disable', 'set cli screen-length 0', 'set cli screen-width 1024']:
                 self._exec_cli_command(c)
         except AnsibleConnectionFailure:
-            raise AnsibleConnectionFailure('unable to set terminal parameters')
+            raise AnsibleConnectionFailure('unable to set cliconf parameters')
